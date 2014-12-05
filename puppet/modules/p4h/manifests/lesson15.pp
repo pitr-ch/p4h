@@ -19,8 +19,8 @@
 
 class p4h::lesson15() {
 
-	file { '/root/README':
-		content => "##lesson15
+  file { '/root/README':
+    content => "##lesson15
 For this lesson, please do the following:
 * Read the 'Hybrid Management' blog post I wrote about this subject
 ** https://ttboj.wordpress.com/2014/07/24/hybrid-management-of-freeipa-types-with-puppet/
@@ -44,9 +44,52 @@ Level 42:
 * Think of an idea for additional exclusionary criteria
 
 Happy hacking!\n",
-	}
+  }
 
-	# XXX: write your code here...
+  include stdlib
+
+  class managed_users ($users) {
+    # helper variables
+    $stored_users_on_node = split($p4h_managed_users_list, ';')
+    $users_for_deletion = difference($stored_users_on_node, $users)
+
+    # simulation of a database, e,g, FreeIPA on the node
+    $service_db = "/tmp/a-service-users-db"
+
+    # db_definition
+    file { $service_db:
+      ensure => directory
+    }
+
+    # has to have bot ensure/absent paths
+    define a_service_user($ensure) {
+      file { "${::p4h::lesson15::managed_users::service_db}/${name}":
+        ensure  => $ensure,
+        content => 'puppet managed',
+        require => File["${::p4h::lesson15::managed_users::service_db}"]
+      }
+    }
+
+    # ensure all the managed users are there, as usual
+    if !empty($users) {
+      a_service_user { $users: ensure => present }
+    }
+    # delete removed users which are no longer managed
+    if !empty($users_for_deletion) {
+      a_service_user { $users_for_deletion: ensure => absent }
+    }
+
+    # DEBUG output
+    notify { managed_users: message => join($users,',') } ->
+    notify { stored_users: message => join($stored_users_on_node,',') } ->
+    notify { to_delete: message => join($users_for_deletion,',') }
+  }
+
+  # this is the definition of managed users
+  class { 'managed_users':
+    # CHANGE the array to see users added and removed automaticaly form the node
+    users => ['a','b','c']
+  }
 
 }
 
